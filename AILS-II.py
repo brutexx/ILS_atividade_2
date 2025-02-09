@@ -80,7 +80,9 @@ def custo(solucao, dist):
 
     return soma
 
-def remocao_vertice(solucao_referencia):
+def remocao_sequencial_vertice(solucao_referencia, dist):
+
+
 
     return sol # TODO: Não fiz o código ainda
 
@@ -149,6 +151,26 @@ def viabilizacao (solucao_candidata, problema, dist):
 
     return solucao_candidata
 
+# Essa função usa pop() - e caso acabar os elementos da lista atual, vai para outra.
+def remocao_vertice(solucao_candidata, rota=None, idx_remocao=None):
+
+    if not solucao_candidata: return # Já retiramos todos os clientes da solução... talvez a perturbação esteja um pouco extrema
+
+    # Checa se precisa pegar outra rota. (Nota: Às vezes a lista encurtou até idx_remocao ser o índice do depot)
+    if (rota is None or len(rota) < 3 or idx_remocao == len(rota)-1): 
+        # rota só com depot (2 vértices)
+        if rota is not None and len(rota) < 3: 
+            solucao_candidata.remove(rota)
+
+        rota = random.choice(solucao_candidata)
+        while len(rota) < 3: 
+            rota = random.choice(solucao_candidata)
+
+        # Não inclui depot no sorteio
+        idx_remocao = random.choice(range(1, len(rota)-1))
+
+    return rota, idx_remocao, rota.pop(idx_remocao)
+    
 
 def perturbacao (solucao_referencia, tamanho_perturbacao, problema, dist):
     # Isso precisa ser feito, para melhor_solucao e solucao_referencia não serem acidentalmente alteradas.
@@ -156,8 +178,11 @@ def perturbacao (solucao_referencia, tamanho_perturbacao, problema, dist):
 
     # TODO: Se tiver mais de uma heurística de remoção de vértices, sortear aqui.
 
+    rota = None
+    idx_remocao = None
+
     for _ in range(tamanho_perturbacao):
-        solucao_candidata, removido = remocao_vertice(solucao_candidata)
+        rota, idx_remocao, removido = remocao_vertice(solucao_candidata, rota, idx_remocao)
         reinsercao_vertice(solucao_candidata, removido, problema, dist)
 
     return viabilizacao(solucao_candidata)
