@@ -84,21 +84,18 @@ def remocao_vertice(solucao_referencia):
 
     return sol # TODO: Não fiz o código ainda
 
-def reinsercao_vertice(solucao_candidata, removida, problema, dist, precisa_ser_viavel=False):
+def reinsercao_vertice(solucao_candidata, removido, problema, dist, precisa_ser_viavel=False):
     melhor_rota = None
     menor_diferenca = float('inf')
-    
-    nova_solucao = []
 
     # Acha qual rota colocar o vértice
-    for rota in solucao_candidata:
+    for r_idx, rota in enumerate(solucao_candidata):
         capacidade = sum([problema.demands[cliente] for cliente in rota])
-        nova_capacidade = capacidade + problema.demands[removida]
+        nova_capacidade = capacidade + problema.demands[removido]
 
         # Checa se a rota ainda é viável
         if nova_capacidade > problema.capacity and precisa_ser_viavel:
             # Não vamos modificar essa rota
-            nova_solucao.append(rota)
             continue
 
         # Acha a melhor posição de inserção nessa rota
@@ -109,7 +106,7 @@ def reinsercao_vertice(solucao_candidata, removida, problema, dist, precisa_ser_
             if (idx == 0):
                 continue
 
-            diferenca_atual = dist[anterior][removida] + dist[removida][vertice] - dist[anterior][vertice]
+            diferenca_atual = dist[anterior][removido] + dist[removido][vertice] - dist[anterior][vertice]
 
             if diferenca_atual < menor_diferenca_rota:
                 melhor_posicao_rota = idx
@@ -119,46 +116,49 @@ def reinsercao_vertice(solucao_candidata, removida, problema, dist, precisa_ser_
 
         # Checa se é a melhor rota pra adicionar o vértice
         if menor_diferenca_rota < menor_diferenca:
-            # Não vamos modificar a melhor rota anterior
-            if melhor_rota is not None: nova_solucao.append(melhor_rota)
-            
-            melhor_rota = rota
+            melhor_rota = r_idx
             menor_diferenca = menor_diferenca_rota
             melhor_posicao = melhor_posicao_rota
-        else:
-            nova_solucao.append(rota)
 
     if melhor_rota is None:
-        nova_solucao.append([problema.depots[0], removida, problema.depots[0]])
+        solucao_candidata.append([problema.depots[0], removido, problema.depots[0]])
     else:
-        melhor_rota.insert(melhor_posicao, removida) # Sabia que insert retorna None?
-        nova_solucao.append(melhor_rota)
+        solucao_candidata[melhor_rota].insert(melhor_posicao, removido)
 
-    return nova_solucao
-
-def viabilizacao (solucao_candidata, problema):
-    nova_solucao = []
+def viabilizacao (solucao_candidata, problema, dist):
+    removidos = set() # Melhor para tirar e colocar elementos
     
     for rota in solucao_candidata:
         capacidade = sum([problema.demands[cliente] for cliente in rota])
 
-        if capacidade < problema.capacity:
-            nova_solucao.append(rota)
+        if capacidade <= problema.capacity:
             continue
         
-        # Ordena pelas demandas, decrescente
-        clientes_ordenados = sorted(rota[1:-1], key=lambda x: problema.demands[x], reverse=True)
+        # Ordem crescente pelas demandas
+        clientes_ordenados = sorted(rota[1:-1], key=lambda x: problema.demands[x])
+
+        while capacidade > problema.capacity:
+            # list.pop() é O(1) porque estamos tirando o último elemento da lista! :D
+            cliente = clientes_ordenados.pop()
+            capacidade -= problema.demands[cliente]
+            removidos.add(cliente)
+            rota.remove(cliente)
+
+    for vertice in removidos:
+        reinsercao_vertice(solucao_candidata, vertice, problema, dist, precisa_ser_viavel=True)
+
+    return solucao_candidata
 
 
-def perturbacao (solucao_referencia, tamanho_perturbacao):
+def perturbacao (solucao_referencia, tamanho_perturbacao, problema, dist):
     # Isso precisa ser feito, para melhor_solucao e solucao_referencia não serem acidentalmente alteradas.
     solucao_candidata = copy.deepcopy(solucao_referencia)
 
     # TODO: Se tiver mais de uma heurística de remoção de vértices, sortear aqui.
 
     for _ in range(tamanho_perturbacao):
-        solucao_candidata, removida = remocao_vertice(solucao_candidata)
-        solucao_candidata = reinsercao_vertice(solucao_candidata, removida)
+        solucao_candidata, removido = remocao_vertice(solucao_candidata)
+        reinsercao_vertice(solucao_candidata, removido, problema, dist)
 
     return viabilizacao(solucao_candidata)
 

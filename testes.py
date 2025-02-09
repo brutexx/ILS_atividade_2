@@ -1,4 +1,6 @@
-for i in range(5):
-    lol = 3
+problema = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 
-print(lol)
+for rota in problema:
+    rota.pop()
+
+print(problema)
