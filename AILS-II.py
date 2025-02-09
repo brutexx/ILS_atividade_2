@@ -1,4 +1,5 @@
 import copy
+import random
 import time
 import tsplib95 
 import math
@@ -27,7 +28,7 @@ def calcula_matriz_distancia(problema):
 
     return distancias
 
-def solucao_inicial(problema, dist):
+def gera_solucao_inicial(problema, dist):
     # De novo, o arquivo indexa começando em 1.
     nao_visitado = set(range(1, problema.dimension+1))
     depot = problema.depots[0]
@@ -68,40 +69,154 @@ def solucao_inicial(problema, dist):
 
     return rotas
 
-def ILS(problema, dist, maximo_segundos, tamanho_perturbacao):
+def custo(solucao, dist):
+    soma = 0
+    for rota in solucao:
+        # Para o primeiro vértice (depot) funcionar no loop
+        previous = rota[0]
+        for vertice in rota:
+            soma += dist[previous][vertice]
+            previous = vertice
+
+    return soma
+
+def remocao_vertice(solucao_referencia):
+
+    return sol # TODO: Não fiz o código ainda
+
+def reinsercao_vertice(solucao_candidata, removida, problema, dist, precisa_ser_viavel=False):
+    melhor_rota = None
+    menor_diferenca = float('inf')
+    
+    nova_solucao = []
+
+    # Acha qual rota colocar o vértice
+    for rota in solucao_candidata:
+        capacidade = sum([problema.demands[cliente] for cliente in rota])
+        nova_capacidade = capacidade + problema.demands[removida]
+
+        # Checa se a rota ainda é viável
+        if nova_capacidade > problema.capacity and precisa_ser_viavel:
+            # Não vamos modificar essa rota
+            nova_solucao.append(rota)
+            continue
+
+        # Acha a melhor posição de inserção nessa rota
+        menor_diferenca_rota = float('inf')
+        anterior = problema.depots[0]
+        for idx, vertice in enumerate(rota):
+            # Olha sempre o vértice atual e o anterior
+            if (idx == 0):
+                continue
+
+            diferenca_atual = dist[anterior][removida] + dist[removida][vertice] - dist[anterior][vertice]
+
+            if diferenca_atual < menor_diferenca_rota:
+                melhor_posicao_rota = idx
+                menor_diferenca_rota = diferenca_atual
+
+            anterior = vertice
+
+        # Checa se é a melhor rota pra adicionar o vértice
+        if menor_diferenca_rota < menor_diferenca:
+            # Não vamos modificar a melhor rota anterior
+            if melhor_rota is not None: nova_solucao.append(melhor_rota)
+            
+            melhor_rota = rota
+            menor_diferenca = menor_diferenca_rota
+            melhor_posicao = melhor_posicao_rota
+        else:
+            nova_solucao.append(rota)
+
+    if melhor_rota is None:
+        nova_solucao.append([problema.depots[0], removida, problema.depots[0]])
+    else:
+        melhor_rota.insert(melhor_posicao, removida) # Sabia que insert retorna None?
+        nova_solucao.append(melhor_rota)
+
+    return nova_solucao
+
+def viabilizacao (solucao_candidata, problema):
+    nova_solucao = []
+    
+    for rota in solucao_candidata:
+        capacidade = sum([problema.demands[cliente] for cliente in rota])
+
+        if capacidade < problema.capacity:
+            nova_solucao.append(rota)
+            continue
+        
+        # Ordena pelas demandas, decrescente
+        clientes_ordenados = sorted(rota[1:-1], key=lambda x: problema.demands[x], reverse=True)
+
+
+def perturbacao (solucao_referencia, tamanho_perturbacao):
+    # Isso precisa ser feito, para melhor_solucao e solucao_referencia não serem acidentalmente alteradas.
+    solucao_candidata = copy.deepcopy(solucao_referencia)
+
+    # TODO: Se tiver mais de uma heurística de remoção de vértices, sortear aqui.
+
+    for _ in range(tamanho_perturbacao):
+        solucao_candidata, removida = remocao_vertice(solucao_candidata)
+        solucao_candidata = reinsercao_vertice(solucao_candidata, removida)
+
+    return viabilizacao(solucao_candidata)
+
+def AILS_II(problema, dist, maximo_segundos, tamanho_perturbacao):
     tempo_inicial = time.time()
 
-    solucao_atual = solucao_inicial(problema, dist)
-    solucao_atual = busca_local(solucao_atual)
-    melhor_solucao = copy.deepcopy(solucao_atual)
+    solucao_f1 = gera_solucao_inicial(problema, dist)
+
+    solucao_f1 = busca_local(solucao_f1)
+    
+    melhor_solucao = copy.deepcopy(solucao_f1)
+    melhor_custo = custo(melhor_solucao, dist)
+
+    grupo_elite = []
+    iteracoes_sem_melhora = 0
+    fase = 1
+
 
     while time.time() - tempo_inicial < maximo_segundos:
 
-        solucao_candidata, removidas = remocao_arestas(solucao_atual, tamanho_perturbacao)
-        solucao_candidata = reinsercao_arestas(solucao_candidata, removidas, problema, dist)
+        # Escolhe a fase
+        # Se puder ir para a fase 2, a chance é 50%
+        if (iteracoes_sem_melhora > 2000 and grupo_elite) and (random.choice([0, 1])):
+            fase = 2
+            solucao_referencia = random.choice(grupo_elite)
+        else:
+            fase = 1
+            solucao_referencia = solucao_f1
+
+        solucao_candidata = perturbacao(solucao_referencia, tamanho_perturbacao)
         solucao_candidata = busca_local(solucao_candidata)
-        custo_candidata = custo_total(solucao_atual, dist)
 
-        if custo_candidata < custo_total(solucao_atual, dist):
-            solucao_atual = copy.deepcopy(custo_candidata)
+        custo_candidata = custo(solucao_candidata, dist)
 
-        if custo_candidata < custo_total(melhor_solucao):
-            melhor_solucao = copy.deepcopy(solucao_atual)
+        if custo_candidata < melhor_custo:
+            melhor_solucao = solucao_candidata
+            melhor_custo = custo(melhor_solucao)
+        else:
+            iteracoes_sem_melhora += 1
 
-def busca_local(solucao_referencia):
-    
+        # (Grau de perturbação é constante, não precisa ser atualizado)
+
+        if (fase == 1):
+            # O critério de aceitação na fase 1 é Best (melhor para execuções curtas)
+            if custo_candidata <= custo(solucao_referencia):
+                solucao_f1 = solucao_candidata
+        
+        # (O critério de aceitação Best não pode ser atualizado)
+
+#def busca_local(solucao_referencia):
 
 def main():
     arquivo = "instancias/A/A-n32-k5.vrp"
     problema = tsplib95.load(arquivo)
 
     dist = calcula_matriz_distancia(problema)
-   
-    test = solucao_inicial(problema, dist)
 
-    print(test)
-
-    #melhor_solucao, melhor_custo = ILS(problema, dist, maximo_segundos=300, tamanho_perturbacao=3)
+    melhor_solucao, melhor_custo = ILS(problema, dist, maximo_segundos=300, tamanho_perturbacao=3)
 
 
     

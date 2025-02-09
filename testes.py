@@ -1,5 +1,4 @@
+for i in range(5):
+    lol = 3
 
-test = set()
-
-if test:
-    print(test)
+print(lol)
