@@ -1,7 +1,7 @@
 
-# problema = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+problema = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 
-a = 3
+a = problema[0][1]
+del a
 
-if (not a is None):
-    print('lol')
+print(problema)

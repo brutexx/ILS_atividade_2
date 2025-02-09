@@ -1,10 +1,11 @@
 import copy
 import random
 import time
-import tsplib95 
+import tsplib95
 import math
+import bisect
 
-def calcula_matriz_distancia(problema):
+def calcula_matrizes(problema, quantidade_vizinhos):
     
     # DIMENSION = quantidade de vértices do problema (incluindo depot)
     n = problema.dimension
@@ -12,9 +13,11 @@ def calcula_matriz_distancia(problema):
 
     # O arquivo-problema indexa usando 1, e não 0
     distancias = [[0]*(n+1) for _ in range(n+1)]
+    todos_vizinhos = {}
 
     # Para cada vértice
     for i in range(1, n+1):
+        vizinhos = []
         # Calcula a distância dele para todos os outros
         for j in range(1, n+1):
             xi, yi = coords[i]
@@ -26,7 +29,15 @@ def calcula_matriz_distancia(problema):
             distancias[i][j] = d
             distancias[j][i] = d
 
-    return distancias
+            if len(vizinhos) < quantidade_vizinhos or d < vizinhos[-1]:
+                bisect.insort(vizinhos, j)
+
+                if len(vizinhos) > quantidade_vizinhos: 
+                    vizinhos.pop()
+
+        todos_vizinhos[i] = vizinhos
+
+    return distancias, todos_vizinhos
 
 def gera_solucao_inicial(problema, dist):
     # De novo, o arquivo indexa começando em 1.
@@ -80,13 +91,7 @@ def custo(solucao, dist):
 
     return soma
 
-def remocao_sequencial_vertice(solucao_referencia, dist):
-
-
-
-    return sol # TODO: Não fiz o código ainda
-
-def reinsercao_vertice(solucao_candidata, removido, problema, dist, precisa_ser_viavel=False):
+def reinsercao_vertice(solucao_candidata, removido, problema, dist, rota_removido=None, idx_removido=None, precisa_ser_viavel=False):
     melhor_rota = None
     menor_diferenca = float('inf')
 
@@ -105,8 +110,9 @@ def reinsercao_vertice(solucao_candidata, removido, problema, dist, precisa_ser_
         anterior = problema.depots[0]
         for idx, vertice in enumerate(rota):
             # Olha sempre o vértice atual e o anterior
-            if (idx == 0):
-                continue
+            if (idx == 0): continue
+            # Não por o vértice removido na posição original dele
+            if (rota_removido == rota and idx_removido == idx): continue
 
             diferenca_atual = dist[anterior][removido] + dist[removido][vertice] - dist[anterior][vertice]
 
@@ -171,7 +177,6 @@ def remocao_vertice(solucao_candidata, rota=None, idx_remocao=None):
 
     return rota, idx_remocao, rota.pop(idx_remocao)
     
-
 def perturbacao (solucao_referencia, tamanho_perturbacao, problema, dist):
     # Isso precisa ser feito, para melhor_solucao e solucao_referencia não serem acidentalmente alteradas.
     solucao_candidata = copy.deepcopy(solucao_referencia)
@@ -183,16 +188,18 @@ def perturbacao (solucao_referencia, tamanho_perturbacao, problema, dist):
 
     for _ in range(tamanho_perturbacao):
         rota, idx_remocao, removido = remocao_vertice(solucao_candidata, rota, idx_remocao)
-        reinsercao_vertice(solucao_candidata, removido, problema, dist)
+        reinsercao_vertice(solucao_candidata, removido, problema, dist, rota, idx_remocao)
 
     return viabilizacao(solucao_candidata)
 
-def AILS_II(problema, dist, maximo_segundos, tamanho_perturbacao):
+def AILS_II(problema, maximo_segundos, tamanho_perturbacao, quantidade_vizinhos):
     tempo_inicial = time.time()
+    
+    dist, vizinhos = calcula_matrizes(problema, quantidade_vizinhos)
 
     solucao_f1 = gera_solucao_inicial(problema, dist)
 
-    solucao_f1 = busca_local(solucao_f1)
+    solucao_f1 = busca_local(solucao_f1, problema, dist, vizinhos)
     
     melhor_solucao = copy.deepcopy(solucao_f1)
     melhor_custo = custo(melhor_solucao, dist)
@@ -214,7 +221,7 @@ def AILS_II(problema, dist, maximo_segundos, tamanho_perturbacao):
             solucao_referencia = solucao_f1
 
         solucao_candidata = perturbacao(solucao_referencia, tamanho_perturbacao)
-        solucao_candidata = busca_local(solucao_candidata)
+        solucao_candidata = busca_local(solucao_candidata, problema, dist, vizinhos)
 
         custo_candidata = custo(solucao_candidata, dist)
 
@@ -233,15 +240,32 @@ def AILS_II(problema, dist, maximo_segundos, tamanho_perturbacao):
         
         # (O critério de aceitação Best não pode ser atualizado)
 
-#def busca_local(solucao_referencia):
+def atualiza(rota, lista_movimentos, solucao_referencia, dist, vizinhos, problema):
+    for idx, vertice in enumerate(rota):
+        for vizinho in vizinhos[vertice]:
+            # Queremos movimentos inter-rota aqui
+            if vizinho in rota: continue
+            if vizinho == problema.depots[0]: continue
+
+            # Shift
+            if (problema.demands[])
+
+
+
+
+
+
+def busca_local(solucao_referencia, problema, dist, vizinhos):
+    lista_movimentos = []
+
+    for rota in solucao_referencia:
+        atualiza(rota, lista_movimentos, solucao_referencia, dist, vizinhos, problema)
 
 def main():
     arquivo = "instancias/A/A-n32-k5.vrp"
     problema = tsplib95.load(arquivo)
 
-    dist = calcula_matriz_distancia(problema)
-
-    melhor_solucao, melhor_custo = ILS(problema, dist, maximo_segundos=300, tamanho_perturbacao=3)
+    melhor_solucao, melhor_custo = AILS_II(problema, maximo_segundos=300, tamanho_perturbacao=3, quantidade_vizinhos=5)
 
 
     
