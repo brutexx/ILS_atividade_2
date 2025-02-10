@@ -208,6 +208,10 @@ def perturbacao (solucao_referencia, tamanho_perturbacao, problema, dist):
 def ILS(problema, maximo_segundos, tamanho_perturbacao, quantidade_vizinhos):
     tempo_inicial = time.time()
     
+    # Coleta de informações
+    dados = [['iteracao', 'melhor custo', 'tempo', 'tempo passado', 'melhor solucao', 'solucao candidata']]
+    iteracao = 1
+
     dist, vizinhos = calcula_matrizes(problema, quantidade_vizinhos)
 
     solucao_referencia = gera_solucao_inicial(problema, dist)
@@ -233,8 +237,12 @@ def ILS(problema, maximo_segundos, tamanho_perturbacao, quantidade_vizinhos):
             solucao_referencia = solucao_candidata
         
         # (O critério de aceitação Best não pode ser atualizado)
+
+        # Coleta de informações
+        dados.append([iteracao, melhor_custo, time.time(), time.time() - tempo_inicial, melhor_solucao, solucao_candidata])
+        iteracao += 1
     
-    return melhor_solucao, melhor_custo
+    return melhor_custo, dados
 
 # Assume que rota e solucao_referencia são válidas
 def atualiza(rota, lista_solucoes, solucao_referencia, dist, vizinhos, problema):
@@ -310,21 +318,41 @@ def busca_local(solucao_referencia, problema, dist, vizinhos):
 
     return min(lista_solucoes, key=lambda x: custo(x, dist)) if lista_solucoes else solucao_referencia
 
+import csv
+
 def main():
-    arquivos = glob.glob(os.path.join('instancias', 'TESTE', '*'))
+    arquivos = glob.glob(os.path.join('instancias', '**', '*.vrp'))
+    arquivos = [f for f in arquivos if os.path.isfile(f)]
 
-    with open("resultados.txt", "w") as resultados:
-        print(f"{'Instancia':<15}{'tp':<5}{'qv':<5}{'valor final'}", file=resultados)
+    melhores_custos = [['nome', 'tentativa', 'melhor custo']]
+    medias = []
 
-        for arquivo in arquivos:
-            for _ in range(5):
+    for arquivo in arquivos:
+        for i in range(5):
 
-                problema = tsplib95.load(arquivo)
+            problema = tsplib95.load(arquivo)
+            melhor_custo, dados = ILS(problema, maximo_segundos=0.001, tamanho_perturbacao=3, quantidade_vizinhos=10)
+            
+            escreve_resultado(dados, problema.name, i)
+            melhores_custos.append([problema.name, i, melhor_custo])
 
-                melhor_solucao, melhor_custo = ILS(problema, maximo_segundos=1, tamanho_perturbacao=3, quantidade_vizinhos=10)
+        soma = 0
+        for item in melhores_custos[-5:]:
+            soma += item[2]
 
-                print(f"{problema.name:<15}{tamanho_perturbacao:<5}{quantidade_vizinhos:<5}{melhor_custo}", file=resultados)
-            # Para caso algo crashe, não perder toda informação
-            resultados.flush()
+        medias.append([problema.name, soma/5])
+
+    escreve_resultado(melhores_custos, 'melhores_custos', 0, "custos_e_media")
+    escreve_resultado(medias, 'medias', 0, "custos_e_media")
+
+def escreve_resultado(dados, nome, iteracao=0, folder="resultados"):
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+    nome_arquivo = os.path.join(folder, f"{nome}_{iteracao}.csv")
+
+    with open(nome_arquivo, "w", newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerows(dados)
 
 main()

@@ -1,10 +1,6 @@
 
 # problema = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
 
-teste = []
+teste = [1, 2, 3, 4, 5, 6, 7]
 
-teste.append(f"testando")
-teste.append(f"um")
-teste.append(f"dos")
-
-print(teste)
+print(teste[-5:])
