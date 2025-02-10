@@ -29,8 +29,8 @@ def calcula_matrizes(problema, quantidade_vizinhos):
             distancias[i][j] = d
             distancias[j][i] = d
 
-            if len(vizinhos) < quantidade_vizinhos or d < vizinhos[-1]:
-                bisect.insort(vizinhos, j)
+            if len(vizinhos) < quantidade_vizinhos or d < distancias[i][vizinhos[-1]]:
+                bisect.insort(vizinhos, j, key=lambda x: distancias[i][x])
 
                 if len(vizinhos) > quantidade_vizinhos: 
                     vizinhos.pop()
@@ -80,7 +80,17 @@ def gera_solucao_inicial(problema, dist):
 
     return rotas
 
+def demanda_r(rota, problema, soma=0):
+    for vertice in rota:
+        soma += problema.demands[vertice]
+
+    return soma
+
 def custo(solucao, dist):
+    # Opção para criar soluções de custo infinito
+    if solucao == [[float('inf')]]: 
+        return float('inf')
+    
     soma = 0
     for rota in solucao:
         # Para o primeiro vértice (depot) funcionar no loop
@@ -190,89 +200,129 @@ def perturbacao (solucao_referencia, tamanho_perturbacao, problema, dist):
         rota, idx_remocao, removido = remocao_vertice(solucao_candidata, rota, idx_remocao)
         reinsercao_vertice(solucao_candidata, removido, problema, dist, rota, idx_remocao)
 
-    return viabilizacao(solucao_candidata)
+    return viabilizacao(solucao_candidata, problema, dist)
 
 def AILS_II(problema, maximo_segundos, tamanho_perturbacao, quantidade_vizinhos):
     tempo_inicial = time.time()
     
     dist, vizinhos = calcula_matrizes(problema, quantidade_vizinhos)
 
-    solucao_f1 = gera_solucao_inicial(problema, dist)
+    solucao_referencia = gera_solucao_inicial(problema, dist)
 
-    solucao_f1 = busca_local(solucao_f1, problema, dist, vizinhos)
+    solucao_referencia = busca_local(solucao_referencia, problema, dist, vizinhos)
     
-    melhor_solucao = copy.deepcopy(solucao_f1)
+    melhor_solucao = copy.deepcopy(solucao_referencia)
     melhor_custo = custo(melhor_solucao, dist)
 
-    grupo_elite = []
-    iteracoes_sem_melhora = 0
-    fase = 1
-
-
     while time.time() - tempo_inicial < maximo_segundos:
-
-        # Escolhe a fase
-        # Se puder ir para a fase 2, a chance é 50%
-        if (iteracoes_sem_melhora > 2000 and grupo_elite) and (random.choice([0, 1])):
-            fase = 2
-            solucao_referencia = random.choice(grupo_elite)
-        else:
-            fase = 1
-            solucao_referencia = solucao_f1
-
-        solucao_candidata = perturbacao(solucao_referencia, tamanho_perturbacao)
+        solucao_candidata = perturbacao(solucao_referencia, tamanho_perturbacao, problema, dist)
         solucao_candidata = busca_local(solucao_candidata, problema, dist, vizinhos)
 
         custo_candidata = custo(solucao_candidata, dist)
 
         if custo_candidata < melhor_custo:
             melhor_solucao = solucao_candidata
-            melhor_custo = custo(melhor_solucao)
-        else:
-            iteracoes_sem_melhora += 1
+            melhor_custo = custo(melhor_solucao, dist)
 
         # (Grau de perturbação é constante, não precisa ser atualizado)
-
-        if (fase == 1):
-            # O critério de aceitação na fase 1 é Best (melhor para execuções curtas)
-            if custo_candidata <= custo(solucao_referencia):
-                solucao_f1 = solucao_candidata
+    
+        # O critério de aceitação é Best (melhor para execuções curtas)
+        if custo_candidata <= custo(solucao_referencia, dist):
+            solucao_referencia = solucao_candidata
         
         # (O critério de aceitação Best não pode ser atualizado)
+    
+    return melhor_solucao, melhor_custo
 
-def atualiza(rota, lista_movimentos, solucao_referencia, dist, vizinhos, problema):
-    for idx, vertice in enumerate(rota):
+# Assume que rota e solucao_referencia são válidas
+def atualiza(rota, lista_solucoes, solucao_referencia, dist, vizinhos, problema):
+    # Gera o melhor movimento entre cada par de vértice
+    for vertice in rota:
+        if vertice == problema.depots[0]: continue
         for vizinho in vizinhos[vertice]:
-            # Queremos movimentos inter-rota aqui
-            if vizinho in rota: continue
             if vizinho == problema.depots[0]: continue
 
+            if vizinho in rota:
+                rota_vizinho = rota
+            else:
+                rota_vizinho = next((r for r in solucao_referencia if vizinho in r))
+
+            resto_da_solucao = [r for r in solucao_referencia if r != rota and r != rota_vizinho]
+            
+            # Para não ter que ficar calculando nos ifs
+            demanda_rota = demanda_r(rota, problema)
+            demanda_rota_vizinho = demanda_r(rota_vizinho, problema)
+            # Para deixar mais legível
+            demanda_vizinho = problema.demands[vizinho]
+            demanda_vertice = problema.demands[vertice]
+
+            # Para caso crie solução inválida, ele não seja escolhido
+            shift = [[float('inf')]]
+            swap = [[float('inf')]]
+            dois_opt = [[float('inf')]]
+
             # Shift
-            if (problema.demands[])
+            if (demanda_rota + demanda_vizinho <= problema.capacity):
+                # Adiciona o vizinho a nossa rota
+                rota_maior = list(rota)
+                rota_maior.insert(-1,vizinho)
 
+                # Remove o vizinho da rota dele
+                rota_menor = list(rota_vizinho)
+                rota_menor.remove(vizinho)
 
+                shift = [rota_maior] + [rota_menor] + resto_da_solucao
 
+            # Swap
+            # "Trocar eu com o meu vizinho não passa a minha rota do limite, nem a dele"
+            if (demanda_rota - demanda_vertice + demanda_vizinho <= problema.capacity and 
+                    demanda_rota_vizinho - demanda_vizinho + demanda_vertice <= problema.capacity):
+                
+                rotas_com_elementos_trocados = [[c if c != vertice else vizinho for c in rota]] + [[c if c != vizinho else vertice for c in rota_vizinho]]
+                
+                swap = rotas_com_elementos_trocados + resto_da_solucao
 
+            # O famoso 2-opt: trocando seções inteiras das rotas!
+            corte = random.choice( range(1, min( len(rota), len(rota_vizinho) )-1) )
 
+            rota_comeco = rota[:corte] + rota_vizinho[corte:]
+            rota_vizinho_comeco = rota_vizinho[:corte] + rota[corte:]
+            
+            if (demanda_r(rota_comeco, problema) <= problema.capacity and 
+                    demanda_r(rota_vizinho_comeco, problema) <= problema.capacity):
+                dois_opt = [rota_comeco] + [rota_vizinho_comeco] + resto_da_solucao
+
+            # Avalia qual o melhor
+            melhor_solucao = min(shift, swap, dois_opt, key= lambda x: custo(x, dist))
+
+            # Se essa mudança de dois vértices melhorou a solução, podemos considerar ela.
+            if (custo(melhor_solucao, dist) < custo(solucao_referencia, dist)):
+                lista_solucoes.append(melhor_solucao)
 
 def busca_local(solucao_referencia, problema, dist, vizinhos):
-    lista_movimentos = []
+    lista_solucoes = []
 
     for rota in solucao_referencia:
-        atualiza(rota, lista_movimentos, solucao_referencia, dist, vizinhos, problema)
+        # Testa movimentos em cada par de vértice, retorna soluções melhores que solucao_referencia
+        atualiza(rota, lista_solucoes, solucao_referencia, dist, vizinhos, problema)
+
+    return min(lista_solucoes, key=lambda x: custo(x, dist)) if lista_solucoes else solucao_referencia
 
 def main():
     arquivo = "instancias/A/A-n32-k5.vrp"
     problema = tsplib95.load(arquivo)
 
-    melhor_solucao, melhor_custo = AILS_II(problema, maximo_segundos=300, tamanho_perturbacao=3, quantidade_vizinhos=5)
+    melhor_solucao, melhor_custo = AILS_II(problema, maximo_segundos=5, tamanho_perturbacao=3, quantidade_vizinhos=5)
 
+    print(melhor_solucao, melhor_custo)
+    imprime_resultado(melhor_solucao, melhor_custo)
 
+import itertools
+def imprime_resultado(melhor_solucao, melhor_custo):
     
+    elementos = set(sorted(itertools.chain.from_iterable(melhor_solucao)))
+    with open("out.txt", "w") as f:
+        print(melhor_solucao, file=f)
+        print(elementos, file=f)
+
 main()
-
-# Testar a matriz distância
-# test = [ [ str(int(e)).zfill(3) for e in l] for l in matriz_distancia]
-
-# with open("out.txt", "w") as f:
-#     print(test, file=f)
