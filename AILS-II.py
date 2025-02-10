@@ -4,6 +4,9 @@ import time
 import tsplib95
 import math
 import bisect
+# Para leitura de arquivos 
+import glob # Que nome majestoso
+import os
 
 def calcula_matrizes(problema, quantidade_vizinhos):
     
@@ -202,13 +205,12 @@ def perturbacao (solucao_referencia, tamanho_perturbacao, problema, dist):
 
     return viabilizacao(solucao_candidata, problema, dist)
 
-def AILS_II(problema, maximo_segundos, tamanho_perturbacao, quantidade_vizinhos):
+def ILS(problema, maximo_segundos, tamanho_perturbacao, quantidade_vizinhos):
     tempo_inicial = time.time()
     
     dist, vizinhos = calcula_matrizes(problema, quantidade_vizinhos)
 
     solucao_referencia = gera_solucao_inicial(problema, dist)
-
     solucao_referencia = busca_local(solucao_referencia, problema, dist, vizinhos)
     
     melhor_solucao = copy.deepcopy(solucao_referencia)
@@ -309,20 +311,20 @@ def busca_local(solucao_referencia, problema, dist, vizinhos):
     return min(lista_solucoes, key=lambda x: custo(x, dist)) if lista_solucoes else solucao_referencia
 
 def main():
-    arquivo = "instancias/A/A-n32-k5.vrp"
-    problema = tsplib95.load(arquivo)
+    arquivos = glob.glob(os.path.join('instancias', 'TESTE', '*'))
 
-    melhor_solucao, melhor_custo = AILS_II(problema, maximo_segundos=5, tamanho_perturbacao=3, quantidade_vizinhos=5)
+    with open("resultados.txt", "w") as resultados:
+        print(f"{'Instancia':<15}{'tp':<5}{'qv':<5}{'valor final'}", file=resultados)
 
-    print(melhor_solucao, melhor_custo)
-    imprime_resultado(melhor_solucao, melhor_custo)
+        for arquivo in arquivos:
+            for _ in range(5):
 
-import itertools
-def imprime_resultado(melhor_solucao, melhor_custo):
-    
-    elementos = set(sorted(itertools.chain.from_iterable(melhor_solucao)))
-    with open("out.txt", "w") as f:
-        print(melhor_solucao, file=f)
-        print(elementos, file=f)
+                problema = tsplib95.load(arquivo)
+
+                melhor_solucao, melhor_custo = ILS(problema, maximo_segundos=1, tamanho_perturbacao=3, quantidade_vizinhos=10)
+
+                print(f"{problema.name:<15}{tamanho_perturbacao:<5}{quantidade_vizinhos:<5}{melhor_custo}", file=resultados)
+            # Para caso algo crashe, não perder toda informação
+            resultados.flush()
 
 main()
