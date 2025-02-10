@@ -209,7 +209,7 @@ def ILS(problema, maximo_segundos, tamanho_perturbacao, quantidade_vizinhos):
     tempo_inicial = time.time()
     
     # Coleta de informações
-    dados = [['iteracao', 'melhor custo', 'tempo', 'tempo passado', 'melhor solucao', 'solucao candidata']]
+    dados = [['iteracao', 'melhor custo', 'custo_candidata', 'tempo', 'tempo passado', 'melhor solucao', 'solucao candidata']]
     iteracao = 1
 
     dist, vizinhos = calcula_matrizes(problema, quantidade_vizinhos)
@@ -239,7 +239,7 @@ def ILS(problema, maximo_segundos, tamanho_perturbacao, quantidade_vizinhos):
         # (O critério de aceitação Best não pode ser atualizado)
 
         # Coleta de informações
-        dados.append([iteracao, melhor_custo, time.time(), time.time() - tempo_inicial, melhor_solucao, solucao_candidata])
+        dados.append([iteracao, melhor_custo, custo_candidata, time.time(), time.time() - tempo_inicial, melhor_solucao, solucao_candidata])
         iteracao += 1
     
     return melhor_custo, dados
@@ -325,22 +325,25 @@ def main():
     arquivos = [f for f in arquivos if os.path.isfile(f)]
 
     melhores_custos = [['nome', 'tentativa', 'melhor custo']]
-    medias = []
+    medias = [['nome', 'media', 'minimo']]
 
     for arquivo in arquivos:
         for i in range(5):
 
             problema = tsplib95.load(arquivo)
-            melhor_custo, dados = ILS(problema, maximo_segundos=0.001, tamanho_perturbacao=3, quantidade_vizinhos=10)
+            melhor_custo, dados = ILS(problema, maximo_segundos=.0001, tamanho_perturbacao=3, quantidade_vizinhos=10)
             
             escreve_resultado(dados, problema.name, i)
             melhores_custos.append([problema.name, i, melhor_custo])
 
+        minimo = min(melhores_custos[-5:], key=lambda x: x[2])
+        
         soma = 0
         for item in melhores_custos[-5:]:
             soma += item[2]
 
-        medias.append([problema.name, soma/5])
+        medias.append([problema.name, soma/5, minimo[1:]])
+
 
     escreve_resultado(melhores_custos, 'melhores_custos', 0, "custos_e_media")
     escreve_resultado(medias, 'medias', 0, "custos_e_media")
